@@ -75,3 +75,4 @@ cd public && python3 -m http.server 8080
 ```
 
 Remember to add `localhost` to Firebase Auth's authorized domains while testing locally (Authentication → Settings → Authorized domains).
+Deployment test
