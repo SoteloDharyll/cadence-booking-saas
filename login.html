@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<title>Sign In — Cadence</title>
+<meta name="theme-color" content="#312E81">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="assets/platform/icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/platform/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/platform/icon-16.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="auth-body">
+
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-mark"><img src="assets/platform/icon-512.png" alt=""></div>
+      <div class="brand-text">
+        <span class="brand-name">Cadence</span>
+        <span class="brand-sub">Staff sign in</span>
+      </div>
+    </div>
+
+    <div id="authMessage" class="auth-message hidden"></div>
+
+    <form id="loginForm" class="booking-form">
+      <label class="form-label">Email
+        <input type="email" id="loginEmail" class="form-input" placeholder="you@yourbusiness.com" required autocomplete="username">
+      </label>
+      <label class="form-label">Password
+        <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+      </label>
+      <button type="submit" class="btn btn-primary btn-block" id="loginBtn">Sign In</button>
+    </form>
+
+    <p class="auth-footnote">Having trouble? Contact your administrator to reset access or check your subscription.</p>
+  </div>
+</div>
+
+<!-- ============ LOCKED / EXPIRED OVERLAY ============ -->
+<div id="lockedOverlay" class="blocking-overlay hidden">
+  <div class="blocking-card">
+    <div class="blocking-icon">⏚</div>
+    <h2 id="lockedTitle">Your subscription has expired</h2>
+    <p id="lockedMessage">Your subscription has expired. Please contact the administrator to renew.</p>
+    <p class="blocking-subnote">All of your bookings, therapists, and customer data are safe and untouched. They'll be available again as soon as your subscription is reactivated.</p>
+    <button class="btn btn-secondary btn-block" id="lockedLogoutBtn">Sign out</button>
+  </div>
+</div>
+
+<script type="module" src="login.js"></script>
+</body>
+</html>

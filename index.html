@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<title>Cadence</title>
+
+<!-- App identity / theming — platform-level, shared by every tenant.
+     Each business's own name/logo/colors load dynamically after sign-in
+     (see applyBusinessBranding in app.js) and only affect the content
+     area, never this shell-level identity. -->
+<meta name="description" content="Booking management for service businesses — manual appointment scheduling with conflict prevention.">
+<meta name="theme-color" content="#312E81">
+
+<!-- iOS / PWA: makes "Add to Home Screen" behave like a real installed app -->
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cadence">
+<link rel="apple-touch-icon" href="assets/platform/icon-180.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/platform/icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/platform/icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/platform/icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/platform/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/platform/icon-16.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ FULL-SCREEN LOADING STATE (shown until auth + subscription check resolves) ============ -->
+<div id="appLoadingScreen" class="blocking-overlay">
+  <div class="blocking-card">
+    <div class="brand-mark loading-mark"><img src="assets/platform/icon-512.png" alt=""></div>
+    <p class="loading-text">Loading your workspace…</p>
+  </div>
+</div>
+
+<!-- ============ LOCKED / EXPIRED OVERLAY ============ -->
+<div id="lockedOverlay" class="blocking-overlay hidden">
+  <div class="blocking-card">
+    <div class="blocking-icon">⏚</div>
+    <h2 id="lockedTitle">Your subscription has expired</h2>
+    <p id="lockedMessage">Your subscription has expired. Please contact the administrator to renew.</p>
+    <p class="blocking-subnote">All of your bookings, therapists, and customer data are safe and untouched. They'll be available again as soon as your subscription is reactivated.</p>
+    <button class="btn btn-secondary btn-block" id="lockedLogoutBtn">Sign out</button>
+  </div>
+</div>
+
+<!-- ============ TOAST / ALERT ============ -->
+<div id="toastRoot" class="toast-root" aria-live="polite"></div>
+
+<!-- ============ CONFLICT MODAL ============ -->
+<div id="conflictModal" class="modal-overlay hidden">
+  <div class="modal conflict-modal">
+    <div class="conflict-icon">⚠</div>
+    <h3>Booking conflict detected</h3>
+    <p id="conflictMessage" class="conflict-message"></p>
+    <button class="btn btn-primary btn-block" id="conflictOkBtn">Got it, let me fix it</button>
+  </div>
+</div>
+
+<!-- ============ CONFIRM MODAL (cancel / delete) ============ -->
+<div id="confirmModal" class="modal-overlay hidden">
+  <div class="modal confirm-modal">
+    <h3 id="confirmTitle">Are you sure?</h3>
+    <p id="confirmMessage" class="confirm-message"></p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" id="confirmCancelBtn">Never mind</button>
+      <button class="btn btn-danger" id="confirmOkBtn">Yes, continue</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-shell">
+
+  <!-- ============ DESKTOP SIDE RAIL ============ -->
+  <aside class="side-rail">
+    <div class="brand">
+      <div class="brand-mark"><img id="tenantLogoImg" src="assets/platform/icon-512.png" alt=""></div>
+      <div class="brand-text">
+        <span class="brand-name" id="businessNameLabel">Your Business</span>
+        <span class="brand-sub">Booking Manager</span>
+      </div>
+    </div>
+    <nav class="rail-nav">
+      <button class="rail-link active" data-view="dashboard">
+        <span class="rail-icon" data-icon="dashboard"></span> Dashboard
+      </button>
+      <button class="rail-link" data-view="bookings">
+        <span class="rail-icon" data-icon="bookings"></span> Bookings
+      </button>
+      <button class="rail-link" data-view="schedule">
+        <span class="rail-icon" data-icon="schedule"></span> Schedule
+      </button>
+      <button class="rail-link" data-view="therapists">
+        <span class="rail-icon" data-icon="therapists"></span> Therapists
+      </button>
+    </nav>
+    <button class="btn btn-primary rail-new-btn" id="railNewBookingBtn">+ New Booking</button>
+    <button class="btn btn-ghost rail-signout-btn" id="signOutBtn">Sign out</button>
+    <div class="rail-footer" id="railFooterText">Staff use only · Synced live</div>
+  </aside>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="main-content">
+
+    <!-- ---------- MOBILE TOP BAR (hidden on desktop) ---------- -->
+    <div class="mobile-topbar">
+      <div class="brand-mark"><img id="tenantLogoImgMobile" src="assets/platform/icon-512.png" alt=""></div>
+      <div class="brand-text">
+        <span class="brand-name" id="businessNameLabelMobile">Your Business</span>
+        <span class="brand-sub">Booking Manager</span>
+      </div>
+      <button class="icon-btn mobile-signout-btn" id="signOutBtnMobile" title="Sign out">⏻</button>
+    </div>
+
+    <!-- ---------- DASHBOARD VIEW ---------- -->
+    <section class="view active" id="view-dashboard">
+      <header class="view-header">
+        <div>
+          <p class="view-eyebrow" id="todayDateLabel">Loading date…</p>
+          <h1 class="view-title">Today at a glance</h1>
+        </div>
+        <button class="btn btn-primary btn-icon-text mobile-hide-sm" id="newBookingBtnDash">
+          <span class="plus">+</span> New Booking
+        </button>
+      </header>
+
+      <div class="stat-grid">
+        <div class="stat-card stat-total">
+          <span class="stat-label">Total appointments today</span>
+          <span class="stat-value" id="statTotal">0</span>
+        </div>
+        <div class="stat-card stat-available">
+          <span class="stat-label">Therapists available now</span>
+          <span class="stat-value" id="statAvailable">0</span>
+        </div>
+        <div class="stat-card stat-occupied">
+          <span class="stat-label">Therapists occupied now</span>
+          <span class="stat-value" id="statOccupied">0</span>
+        </div>
+        <div class="stat-card stat-offduty">
+          <span class="stat-label">Off duty / on leave</span>
+          <span class="stat-value" id="statOffDuty">0</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Today's rhythm</h2>
+          <p class="panel-sub">Each row is a therapist's day, 8 AM – 9 PM</p>
+        </div>
+        <div id="rhythmChart" class="rhythm-chart"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Today's bookings</h2>
+          <span class="panel-sub" id="dashBookingCount"></span>
+        </div>
+        <div id="dashBookingList" class="booking-list"></div>
+      </div>
+    </section>
+
+    <!-- ---------- BOOKINGS VIEW ---------- -->
+    <section class="view" id="view-bookings">
+      <header class="view-header">
+        <div>
+          <p class="view-eyebrow">All appointments</p>
+          <h1 class="view-title">Bookings</h1>
+        </div>
+        <button class="btn btn-primary btn-icon-text mobile-hide-sm" id="newBookingBtnList">
+          <span class="plus">+</span> New Booking
+        </button>
+      </header>
+
+      <div class="toolbar">
+        <div class="search-field">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="searchInput" placeholder="Search by customer name or contact number…">
+        </div>
+        <div class="toolbar-filters">
+          <input type="date" id="filterDate" class="filter-input">
+          <select id="filterTherapist" class="filter-input">
+            <option value="">All therapists</option>
+          </select>
+          <select id="filterStatus" class="filter-input">
+            <option value="">All statuses</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" id="clearFiltersBtn">Clear</button>
+        </div>
+      </div>
+
+      <div class="toolbar-actions">
+        <button class="btn btn-secondary btn-sm" id="printScheduleBtn">🖶 Print daily schedule</button>
+        <button class="btn btn-secondary btn-sm" id="exportCsvBtn">⤓ Export to CSV</button>
+      </div>
+
+      <div id="allBookingList" class="booking-list"></div>
+    </section>
+
+    <!-- ---------- SCHEDULE VIEW ---------- -->
+    <section class="view" id="view-schedule">
+      <div class="print-header">
+        <img id="printLogoImg" src="assets/platform/icon-512.png" alt="">
+        <div class="print-header-text">
+          <p id="printBusinessName" class="print-business-name"></p>
+          <p id="printBusinessContact" class="print-business-contact"></p>
+          <p id="printDateLabel"></p>
+        </div>
+      </div>
+      <header class="view-header">
+        <div>
+          <p class="view-eyebrow">Daily timetable</p>
+          <h1 class="view-title">Schedule</h1>
+        </div>
+        <input type="date" id="scheduleDate" class="filter-input">
+      </header>
+
+      <div class="legend">
+        <span class="legend-item"><i class="dot dot-green"></i> Available</span>
+        <span class="legend-item"><i class="dot dot-red"></i> Occupied</span>
+        <span class="legend-item"><i class="dot dot-gray"></i> Off duty</span>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Therapist status right now</h2>
+        </div>
+        <div id="scheduleTherapistStatus" class="therapist-status-grid"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Bookings for this day, by time</h2>
+        </div>
+        <div id="scheduleBookingList" class="booking-list"></div>
+      </div>
+    </section>
+
+    <!-- ---------- THERAPISTS VIEW ---------- -->
+    <section class="view" id="view-therapists">
+      <header class="view-header">
+        <div>
+          <p class="view-eyebrow">Team management</p>
+          <h1 class="view-title">Therapists</h1>
+        </div>
+        <button class="btn btn-primary btn-icon-text" id="addTherapistBtn">
+          <span class="plus">+</span> Add Therapist
+        </button>
+      </header>
+
+      <div id="therapistGrid" class="therapist-grid"></div>
+    </section>
+
+  </main>
+
+  <!-- ============ MOBILE BOTTOM NAV ============ -->
+  <nav class="bottom-nav">
+    <button class="bottom-link active" data-view="dashboard">
+      <span class="bottom-icon" data-icon="dashboard"></span>
+      <span>Home</span>
+    </button>
+    <button class="bottom-link" data-view="bookings">
+      <span class="bottom-icon" data-icon="bookings"></span>
+      <span>Bookings</span>
+    </button>
+    <button class="bottom-link bottom-link-fab" id="fabNewBooking">
+      <span class="fab-plus">+</span>
+    </button>
+    <button class="bottom-link" data-view="schedule">
+      <span class="bottom-icon" data-icon="schedule"></span>
+      <span>Schedule</span>
+    </button>
+    <button class="bottom-link" data-view="therapists">
+      <span class="bottom-icon" data-icon="therapists"></span>
+      <span>Team</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- ============ BOOKING FORM MODAL ============ -->
+<div id="bookingModal" class="modal-overlay hidden">
+  <div class="modal booking-modal">
+    <div class="modal-header">
+      <h3 id="bookingModalTitle">New Booking</h3>
+      <button class="modal-close" id="closeBookingModal">&times;</button>
+    </div>
+    <form id="bookingForm" class="booking-form">
+      <input type="hidden" id="bookingId">
+
+      <label class="form-label">Customer name
+        <input type="text" id="customerName" class="form-input" placeholder="e.g. Liza Soberano" required>
+      </label>
+
+      <label class="form-label">Contact number
+        <input type="tel" id="contactNumber" class="form-input" placeholder="e.g. 0917 123 4567" required>
+      </label>
+
+      <label class="form-label">Service type
+        <select id="serviceType" class="form-input" required>
+          <option value="">Select a service…</option>
+          <option>Swedish Massage</option>
+          <option>Hilot</option>
+          <option>Facial</option>
+          <option>Foot Spa</option>
+          <option>Hot Stone Massage</option>
+          <option>Shiatsu</option>
+          <option>Couple Spa Package</option>
+          <option value="__other">Other…</option>
+        </select>
+      </label>
+      <label class="form-label hidden" id="customServiceWrap">Custom service name
+        <input type="text" id="customServiceName" class="form-input" placeholder="Type the service name">
+      </label>
+
+      <div class="form-row">
+        <label class="form-label">Date
+          <input type="date" id="bookingDate" class="form-input" required>
+        </label>
+        <label class="form-label">Start time
+          <input type="time" id="startTime" class="form-input" required>
+        </label>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">Duration
+          <select id="duration" class="form-input" required>
+            <option value="60">60 minutes</option>
+            <option value="90">90 minutes</option>
+            <option value="120">120 minutes</option>
+          </select>
+        </label>
+        <label class="form-label"># Therapists required
+          <select id="therapistCount" class="form-input" required>
+            <option value="1">1 therapist</option>
+            <option value="2">2 therapists</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="form-label">
+        Assigned therapist(s)
+        <div id="therapistCheckboxes" class="therapist-checkbox-list"></div>
+        <p class="field-hint">Only therapists free for this exact time slot are shown as selectable.</p>
+      </div>
+
+      <label class="form-label">Notes <span class="optional-tag">optional</span>
+        <textarea id="bookingNotes" class="form-input" rows="2" placeholder="Allergies, preferences, special requests…"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="cancelBookingFormBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="saveBookingBtn">Save Booking</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ THERAPIST FORM MODAL ============ -->
+<div id="therapistModal" class="modal-overlay hidden">
+  <div class="modal therapist-form-modal">
+    <div class="modal-header">
+      <h3 id="therapistModalTitle">Add Therapist</h3>
+      <button class="modal-close" id="closeTherapistModal">&times;</button>
+    </div>
+    <form id="therapistForm" class="booking-form">
+      <input type="hidden" id="therapistId">
+      <label class="form-label">Therapist name
+        <input type="text" id="therapistName" class="form-input" placeholder="e.g. Maria Santos" required>
+      </label>
+      <label class="form-label">Status
+        <select id="therapistStatus" class="form-input" required>
+          <option value="available">Available</option>
+          <option value="off-duty">Off Duty</option>
+          <option value="on-leave">On Leave</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="cancelTherapistFormBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Therapist</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ BOOKING DETAIL MODAL ============ -->
+<div id="detailModal" class="modal-overlay hidden">
+  <div class="modal detail-modal">
+    <div class="modal-header">
+      <h3>Booking details</h3>
+      <button class="modal-close" id="closeDetailModal">&times;</button>
+    </div>
+    <div id="detailContent" class="detail-content"></div>
+    <div class="modal-actions detail-actions">
+      <button class="btn btn-ghost" id="detailCancelBtn">Cancel Booking</button>
+      <button class="btn btn-secondary" id="detailEditBtn">Edit</button>
+      <button class="btn btn-primary" id="detailCompleteBtn">Mark Completed</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

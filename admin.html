@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<title>Admin Console — Cadence</title>
+<meta name="theme-color" content="#312E81">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon-16.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../public/styles.css">
+</head>
+<body>
+
+<div id="appLoadingScreen" class="blocking-overlay">
+  <div class="blocking-card">
+    <div class="brand-mark loading-mark"><img src="assets/icon-512.png" alt=""></div>
+    <p class="loading-text">Loading admin console…</p>
+  </div>
+</div>
+
+<div id="toastRoot" class="toast-root" aria-live="polite"></div>
+
+<div class="admin-shell hidden" id="adminShell">
+
+  <div class="admin-header">
+    <div class="auth-brand" style="margin-bottom:0;">
+      <div class="brand-mark"><img src="assets/icon-512.png" alt=""></div>
+      <div class="brand-text">
+        <span class="brand-name">Cadence Admin</span>
+        <span class="brand-sub">All businesses</span>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="admin-login-badge" id="adminEmailBadge"></span>
+      <button class="btn btn-ghost btn-sm" id="adminSignOutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <div class="admin-stat-grid">
+    <div class="stat-card stat-total">
+      <span class="stat-label">Total businesses</span>
+      <span class="stat-value" id="adminStatTotal">0</span>
+    </div>
+    <div class="stat-card stat-available">
+      <span class="stat-label">Active subscriptions</span>
+      <span class="stat-value" id="adminStatActive">0</span>
+    </div>
+    <div class="stat-card stat-occupied">
+      <span class="stat-label">Expired</span>
+      <span class="stat-value" id="adminStatExpired">0</span>
+    </div>
+    <div class="stat-card stat-offduty">
+      <span class="stat-label">Suspended</span>
+      <span class="stat-value" id="adminStatSuspended">0</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Add a new business</h2>
+      <p class="panel-sub">Creates the business record with its own branding. You'll still need to create its owner's login in Firebase Authentication — see SETUP.md.</p>
+    </div>
+    <form id="addBusinessForm" class="booking-form">
+      <div class="form-row">
+        <label class="form-label">Business name
+          <input type="text" id="newBizName" class="form-input" placeholder="e.g. Spa de Iloko" required>
+        </label>
+        <label class="form-label">Owner email <span class="optional-tag">for your reference</span>
+          <input type="email" id="newBizEmail" class="form-input" placeholder="owner@theirspa.com">
+        </label>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Initial status
+          <select id="newBizStatus" class="form-input">
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </label>
+        <label class="form-label">Expiry date
+          <input type="date" id="newBizExpiry" class="form-input" required>
+        </label>
+      </div>
+
+      <div class="form-divider">Their branding <span class="optional-tag">shown to their staff after login + on printed schedules</span></div>
+
+      <label class="form-label">Logo URL <span class="optional-tag">optional — a link to their logo image</span>
+        <input type="url" id="newBizLogoUrl" class="form-input" placeholder="https://example.com/their-logo.png">
+      </label>
+      <div class="form-row">
+        <label class="form-label">Primary color
+          <input type="color" id="newBizPrimaryColor" class="form-input color-input" value="#4B5563">
+        </label>
+        <label class="form-label">Secondary color
+          <input type="color" id="newBizSecondaryColor" class="form-input color-input" value="#9CA3AF">
+        </label>
+      </div>
+      <label class="form-label">Address <span class="optional-tag">optional</span>
+        <input type="text" id="newBizAddress" class="form-input" placeholder="123 Rizal St, Iloilo City">
+      </label>
+      <div class="form-row">
+        <label class="form-label">Contact phone <span class="optional-tag">optional</span>
+          <input type="text" id="newBizPhone" class="form-input" placeholder="0917 123 4567">
+        </label>
+        <label class="form-label">Contact email <span class="optional-tag">optional</span>
+          <input type="email" id="newBizContactEmail" class="form-input" placeholder="hello@theirspa.com">
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">+ Add Business</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h2>All businesses</h2>
+      <span class="panel-sub" id="bizCount"></span>
+    </div>
+    <div class="business-table-wrap">
+      <table class="business-table">
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>Status</th>
+            <th>Expiry date</th>
+            <th>Therapists</th>
+            <th>Bookings</th>
+            <th>Branding</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="businessTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ EDIT BRANDING MODAL ============ -->
+<div id="brandingModal" class="modal-overlay hidden">
+  <div class="modal booking-modal">
+    <div class="modal-header">
+      <h3 id="brandingModalTitle">Edit branding</h3>
+      <button class="modal-close" id="closeBrandingModal">&times;</button>
+    </div>
+    <form id="brandingForm" class="booking-form">
+      <input type="hidden" id="brandingBizId">
+      <label class="form-label">Logo URL <span class="optional-tag">a link to their logo image</span>
+        <input type="url" id="brandLogoUrl" class="form-input" placeholder="https://example.com/their-logo.png">
+      </label>
+      <div class="form-row">
+        <label class="form-label">Primary color
+          <input type="color" id="brandPrimaryColor" class="form-input color-input">
+        </label>
+        <label class="form-label">Secondary color
+          <input type="color" id="brandSecondaryColor" class="form-input color-input">
+        </label>
+      </div>
+      <label class="form-label">Address
+        <input type="text" id="brandAddress" class="form-input" placeholder="123 Rizal St, Iloilo City">
+      </label>
+      <div class="form-row">
+        <label class="form-label">Contact phone
+          <input type="text" id="brandPhone" class="form-input" placeholder="0917 123 4567">
+        </label>
+        <label class="form-label">Contact email
+          <input type="email" id="brandContactEmail" class="form-input" placeholder="hello@theirspa.com">
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="cancelBrandingFormBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Branding</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ CONFIRM MODAL ============ -->
+<div id="confirmModal" class="modal-overlay hidden">
+  <div class="modal confirm-modal">
+    <h3 id="confirmTitle">Are you sure?</h3>
+    <p id="confirmMessage" class="confirm-message"></p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" id="confirmCancelBtn">Never mind</button>
+      <button class="btn btn-danger" id="confirmOkBtn">Yes, continue</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>

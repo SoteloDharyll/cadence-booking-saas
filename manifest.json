@@ -1,0 +1,21 @@
+{
+  "name": "Cadence — Booking Management",
+  "short_name": "Cadence",
+  "description": "Booking management for service businesses — manual scheduling with conflict prevention. Requires an internet connection.",
+  "start_url": "./login.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F8F4EC",
+  "theme_color": "#312E81",
+  "icons": [
+    { "src": "assets/platform/icon-16.png", "sizes": "16x16", "type": "image/png" },
+    { "src": "assets/platform/icon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "assets/platform/icon-120.png", "sizes": "120x120", "type": "image/png" },
+    { "src": "assets/platform/icon-152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "assets/platform/icon-167.png", "sizes": "167x167", "type": "image/png" },
+    { "src": "assets/platform/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "assets/platform/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
+

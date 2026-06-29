@@ -1,0 +1,150 @@
+rules_version = '2';
+
+/* ===========================================================
+   Cadence — Firestore Security Rules
+   -----------------------------------------------------------
+   Trust model:
+   - `users/{uid}`        — links a Firebase Auth user to exactly
+                             one business + a role ("owner" | "staff").
+                             A user can only ever read their OWN link
+                             document; nobody can read another
+                             business's staff roster from this
+                             collection.
+   - `businesses/{id}`    — one document per paying customer (spa).
+                             Contains subscriptionStatus,
+                             subscriptionExpiryDate, and a `branding`
+                             object (name, logo, colors, address,
+                             contact info). Staff/owners of that
+                             business can READ it (so the app can show
+                             their own status + load their own
+                             branding) but can NEVER write to ANY of
+                             it themselves — not subscription fields,
+                             not branding — only a super-admin can.
+                             This is the rule that actually enforces
+                             "only I can change subscriptions" (and
+                             onboard/edit each tenant's branding) from
+                             the requirements.
+   - `businesses/{id}/bookings/*`, `/therapists/*`
+                           — fully scoped to one business. Read/write
+                             requires (a) being signed in, (b) being
+                             linked via users/{uid} to THIS business,
+                             and (c) that business's subscription
+                             currently being active. This is what
+                             "locks" the app on expiry at the data
+                             layer, not just in the UI — even a
+                             modified/bypassed client can't read or
+                             write booking data once a subscription
+                             expires, while the data itself is left
+                             completely untouched.
+   - `admins/{uid}`        — super-admin allowlist. Only a UID present
+                             here can write to `businesses/*`
+                             (activate/suspend/change expiry/branding)
+                             or read across all businesses. Nobody can
+                             write to this collection from client code
+                             at all — admins are added directly in the
+                             Firebase Console (see SETUP.md).
+   =========================================================== */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ----------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function userLink() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isLinkedToBusiness(businessId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        userLink().data.businessId == businessId;
+    }
+
+    function businessDoc(businessId) {
+      return get(/databases/$(database)/documents/businesses/$(businessId));
+    }
+
+    function subscriptionIsActive(businessId) {
+      let biz = businessDoc(businessId).data;
+      return biz.subscriptionStatus == 'active' &&
+        biz.subscriptionExpiryDate != null &&
+        biz.subscriptionExpiryDate > request.time;
+    }
+
+    // ----------------------------------------------------------
+    // users/{uid} — auth-to-business link records
+    // ----------------------------------------------------------
+    match /users/{uid} {
+      // A user may read only their own link record. Admins may read
+      // any, so the admin console can be extended later if needed.
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      // Link records are provisioned by an admin via the Firebase
+      // Console / Admin SDK during onboarding (see SETUP.md) — never
+      // writable from client code, by design.
+      allow write: if false;
+    }
+
+    // ----------------------------------------------------------
+    // admins/{uid} — super-admin allowlist
+    // ----------------------------------------------------------
+    match /admins/{uid} {
+      // Admins can confirm their own admin-ness (used by the admin
+      // console's auth check). No one can read the full admin list,
+      // and no one can write to it from client code at all — add
+      // admins directly in the Firebase Console.
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // ----------------------------------------------------------
+    // businesses/{businessId} — subscription + business metadata
+    // ----------------------------------------------------------
+    match /businesses/{businessId} {
+      // Owners/staff of a business can read their own business doc
+      // (so the app can show subscription status), and so can any
+      // admin (so the admin console can list every business).
+      allow read: if isAdmin() || isLinkedToBusiness(businessId);
+
+      // ONLY admins can create, update, or delete a business document —
+      // this includes subscriptionStatus, subscriptionExpiryDate, AND
+      // branding (name, logo, colors, address, contact info). Per the
+      // product requirements, business owners/staff can SEE their own
+      // branding and subscription status (via the read rule above) but
+      // never edit it themselves; only the platform admin manages it.
+      allow create, update, delete: if isAdmin();
+
+      // ----------------------------------------------------------
+      // businesses/{businessId}/bookings/{bookingId}
+      // ----------------------------------------------------------
+      match /bookings/{bookingId} {
+        allow read, write: if isAdmin() ||
+          (isLinkedToBusiness(businessId) && subscriptionIsActive(businessId));
+      }
+
+      // ----------------------------------------------------------
+      // businesses/{businessId}/therapists/{therapistId}
+      // ----------------------------------------------------------
+      match /therapists/{therapistId} {
+        allow read, write: if isAdmin() ||
+          (isLinkedToBusiness(businessId) && subscriptionIsActive(businessId));
+      }
+    }
+
+    // ----------------------------------------------------------
+    // Deny everything else by default
+    // ----------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
