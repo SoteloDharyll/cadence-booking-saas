@@ -67,6 +67,8 @@ import {
   }
 
   function applyBusinessBranding() {
+
+    console.log("SESSION BUSINESS:", session.business);
     const business = session.business || {};
     const branding = business.branding || {};
     const name = business.name || "Your Business";
