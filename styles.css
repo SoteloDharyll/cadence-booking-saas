@@ -114,8 +114,11 @@ h1, h2, h3 {
 .side-rail {
   display: none;
   width: 248px;
-  background: var(--platform-primary-deep);
-  color: var(--linen);
+background: linear-gradient(
+  180deg,
+  var(--tenant-primary),
+  var(--tenant-primary-deep)
+);  color: var(--linen);
   flex-direction: column;
   padding: 28px 18px;
   position: sticky;
